@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-app
+  labels:
+    app: todo-app
+
+spec:
+  replicas: {{ .Values.replicaCount }}
+
+  selector:
+    matchLabels:
+      app: todo-app
+
+  template:
+    metadata:
+      labels:
+        app: todo-app
+
+    spec:
+      containers:
+        - name: todo-app
+
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+
+          env:
+            - name: DATABASE
+              value: {{ .Values.database.path | quote }}
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.containerPort }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.containerPort }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+          volumeMounts:
+            - name: todo-data
+              mountPath: /app/data
+
+      volumes:
+        - name: todo-data
+          emptyDir: {}
