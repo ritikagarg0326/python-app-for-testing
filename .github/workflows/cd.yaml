@@ -1,0 +1,82 @@
+
+name: Deploy Todo App to EKS
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy with Helm
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Configure EKS Access
+        run: |
+          aws eks update-kubeconfig \
+            --region us-east-1 \
+            --name todo-eks
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Validate Helm Chart
+        run: |
+          helm lint ./todo-helm
+
+      - name: Deploy Todo Application
+        run: |
+          helm upgrade --install todo-helm ./todo-helm \
+            --namespace todo \
+            --create-namespace \
+            --set image.tag=${GITHUB_SHA} \
+            --wait \
+            --timeout 10m
+
+      - name: Verify Deployment
+        run: |
+          kubectl rollout status deployment/todo-helm \
+            --namespace todo \
+            --timeout=300s
+
+          echo "Deployment successful!"
+
+          kubectl get deployments -n todo
+          kubectl get pods -n todo
+          kubectl get services -n todo
+
+      - name: Display Deployment Information
+        if: success()
+        run: |
+          {
+            echo "## Todo App - EKS Deployment"
+            echo ""
+            echo "Deployment: SUCCESS"
+            echo ""
+            echo "Image: ${GITHUB_SHA}"
+            echo ""
+            echo "### Kubernetes Resources"
+            echo '```text'
+            kubectl get deployments,pods,services -n todo
+            echo '```'
+            echo ""
+            echo "### Access Application Locally"
+            echo '```powershell'
+            echo "aws eks update-kubeconfig --region us-east-1 --name todo-eks"
+            echo "kubectl port-forward svc/todo-helm 8080:80 -n todo"
+            echo '```'
+            echo ""
+            echo "Open http://localhost:8080 in your browser."
+          } >> "$GITHUB_STEP_SUMMARY"

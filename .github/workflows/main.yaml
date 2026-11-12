@@ -1,5 +1,5 @@
 
-name: Todo App CI Pipeline
+name: Todo App CI/CD Pipeline
 
 on:
   push:
@@ -10,5 +10,12 @@ on:
 
 jobs:
   build:
+    name: Build and Push Docker Image
     uses: ./.github/workflows/ci.yaml
+    secrets: inherit
+
+  deploy:
+    name: Deploy to AWS EKS
+    needs: build
+    uses: ./.github/workflows/cd.yaml
     secrets: inherit
