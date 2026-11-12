@@ -1,0 +1,56 @@
+
+name: Build and Push Docker Image to ECR
+
+on:
+  workflow_call:
+
+jobs:
+  docker-build-push:
+    name: Build and Push
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout source code
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Configure AWS credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      # Login to AWS ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Build Docker image
+      - name: Build Docker Image
+        run: |
+          docker build -t todo-app:${{ github.sha }} .
+
+      # Tag Docker image
+      - name: Tag Docker Image
+        run: |
+          docker tag todo-app:${{ github.sha }} \
+            470024785854.dkr.ecr.us-east-1.amazonaws.com/dev/todo:${{ github.sha }}
+
+          docker tag todo-app:${{ github.sha }} \
+            470024785854.dkr.ecr.us-east-1.amazonaws.com/dev/todo:latest
+
+      # Push Docker image
+      - name: Push Docker Image to ECR
+        run: |
+          docker push 470024785854.dkr.ecr.us-east-1.amazonaws.com/dev/todo:${{ github.sha }}
+
+          docker push 470024785854.dkr.ecr.us-east-1.amazonaws.com/dev/todo:latest
+
+      # Verify image
+      - name: Verify ECR Image
+        run: |
+          aws ecr describe-images \
+            --repository-name dev/todo \
+            --region us-east-1
