@@ -41,7 +41,7 @@ docker compose ps
 docker compose logs -f
 ```
 
-Open http://localhost:5000.
+Open http://localhost:8000.
 
 Stop the Compose application:
 
