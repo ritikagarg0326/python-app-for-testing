@@ -23,36 +23,46 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Debug AWS Identity
+      - name: Configure EKS IAM Access
         run: |
-          echo "Checking IAM identity used by GitHub Actions..."
-          aws sts get-caller-identity
+          CLUSTER=todo-eks
+          REGION=us-east-1
+          ARN=$(aws sts get-caller-identity --query Arn --output text)
 
-          echo "Checking EKS cluster..."
-          aws eks describe-cluster \
-            --name todo-eks \
-            --region us-east-1 \
-            --query "cluster.{Status:status,Endpoint:endpoint,AuthMode:accessConfig.authenticationMode}" \
-            --output json
+          echo "GitHub IAM identity: $ARN"
 
-      - name: Configure EKS Access
+          if ! aws eks describe-access-entry \
+            --cluster-name "$CLUSTER" \
+            --principal-arn "$ARN" \
+            --region "$REGION" >/dev/null 2>&1; then
+
+            aws eks create-access-entry \
+              --cluster-name "$CLUSTER" \
+              --principal-arn "$ARN" \
+              --type STANDARD \
+              --region "$REGION"
+          fi
+
+          aws eks associate-access-policy \
+            --cluster-name "$CLUSTER" \
+            --principal-arn "$ARN" \
+            --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
+            --access-scope type=cluster \
+            --region "$REGION" || true
+
+      - name: Configure Kubernetes
         run: |
           aws eks update-kubeconfig \
             --region us-east-1 \
             --name todo-eks
 
-      - name: Test Kubernetes Authentication
-        run: |
-          echo "Checking Kubernetes connectivity..."
           kubectl get nodes
-          kubectl auth can-i '*' '*' --all-namespaces
 
       - name: Install Helm
         uses: azure/setup-helm@v4
 
-      - name: Validate Helm Chart
-        run: |
-          helm lint ./todo-helm
+      - name: Validate Helm
+        run: helm lint ./todo-helm
 
       - name: Deploy Todo Application
         run: |
@@ -66,22 +76,15 @@ jobs:
       - name: Verify Deployment
         run: |
           kubectl rollout status deployment/todo-helm \
-            --namespace todo \
-            --timeout=300s
+            -n todo --timeout=300s
 
-          echo "Deployment successful!"
+          kubectl get deployments,pods,services -n todo
 
-          kubectl get deployments -n todo
-          kubectl get pods -n todo
-          kubectl get services -n todo
-
-      - name: Display Deployment Information
+      - name: Deployment Summary
         if: success()
         run: |
           {
-            echo "## Todo App - EKS Deployment"
-            echo ""
-            echo "Deployment: SUCCESS"
+            echo "## Todo App Deployment Successful"
             echo ""
             echo "Image: ${GITHUB_SHA}"
             echo ""
@@ -90,11 +93,9 @@ jobs:
             kubectl get deployments,pods,services -n todo
             echo '```'
             echo ""
-            echo "### Access Application Locally"
+            echo "### Access locally"
             echo '```powershell'
-            echo "aws eks update-kubeconfig --region us-east-1 --name todo-eks"
             echo "kubectl port-forward svc/todo-helm 8080:80 -n todo"
             echo '```'
-            echo ""
-            echo "Open http://localhost:8080 in your browser."
+            echo "Open http://localhost:8080"
           } >> "$GITHUB_STEP_SUMMARY"
