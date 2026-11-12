@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: 470024785854.dkr.ecr.us-east-1.amazonaws.com/dev/todo:latest
+  repository: 470024785854.dkr.ecr.us-east-1.amazonaws.com/dev/todo
   tag: local
   pullPolicy: Always
 
