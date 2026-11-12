@@ -1,4 +1,3 @@
-
 name: Deploy Todo App to EKS
 
 on:
@@ -61,24 +60,38 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v4
 
-      - name: Validate Helm
-        run: helm lint ./todo-helm
+      - name: Validate Helm Chart
+        run: |
+          helm lint ./todo-helm
+
+      - name: Verify ECR Image
+        run: |
+          aws ecr describe-images \
+            --repository-name dev/todo \
+            --image-ids imageTag=${GITHUB_SHA} \
+            --region us-east-1
 
       - name: Deploy Todo Application
         run: |
           helm upgrade --install todo-helm ./todo-helm \
             --namespace todo \
             --create-namespace \
+            --set image.repository=470024785854.dkr.ecr.us-east-1.amazonaws.com/dev/todo \
             --set image.tag=${GITHUB_SHA} \
             --wait \
             --timeout 10m
 
       - name: Verify Deployment
         run: |
-          kubectl rollout status deployment/todo-helm \
-            -n todo --timeout=300s
+          kubectl rollout status deployment/todo-app \
+            --namespace todo \
+            --timeout=300s
 
-          kubectl get deployments,pods,services -n todo
+          echo "Deployment successful!"
+
+          kubectl get deployments -n todo
+          kubectl get pods -n todo -o wide
+          kubectl get services -n todo
 
       - name: Deployment Summary
         if: success()
@@ -93,9 +106,20 @@ jobs:
             kubectl get deployments,pods,services -n todo
             echo '```'
             echo ""
-            echo "### Access locally"
+            echo "### Access Application Locally"
             echo '```powershell'
-            echo "kubectl port-forward svc/todo-helm 8080:80 -n todo"
+            echo "aws eks update-kubeconfig --region us-east-1 --name todo-eks"
+            echo "kubectl port-forward svc/todo-app 8080:80 -n todo"
             echo '```'
+            echo ""
             echo "Open http://localhost:8080"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Show Diagnostics on Failure
+        if: failure()
+        run: |
+          echo "Deployment diagnostics"
+          kubectl get pods -n todo -o wide || true
+          kubectl get deployments -n todo || true
+          kubectl get events -n todo \
+            --sort-by=.metadata.creationTimestamp || true
