@@ -92,6 +92,8 @@ jobs:
           kubectl get deployments -n todo
           kubectl get pods -n todo -o wide
           kubectl get services -n todo
+          kubectl get svc -n todo -w
+          kubectl get pods -n todo -o wide
 
       - name: Deployment Summary
         if: success()
