@@ -22,23 +22,30 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      - name: Debug AWS Identity
-              run: |
-                echo "Checking IAM identity used by GitHub Actions..."
-                aws sts get-caller-identity
 
-                echo "Checking EKS cluster..."
-                aws eks describe-cluster \
-                  --name todo-eks \
-                  --region us-east-1 \
-                  --query "cluster.{Status:status,Endpoint:endpoint,AuthMode:accessConfig.authenticationMode}" \
-                  --output json
-                  
+      - name: Debug AWS Identity
+        run: |
+          echo "Checking IAM identity used by GitHub Actions..."
+          aws sts get-caller-identity
+
+          echo "Checking EKS cluster..."
+          aws eks describe-cluster \
+            --name todo-eks \
+            --region us-east-1 \
+            --query "cluster.{Status:status,Endpoint:endpoint,AuthMode:accessConfig.authenticationMode}" \
+            --output json
+
       - name: Configure EKS Access
         run: |
           aws eks update-kubeconfig \
             --region us-east-1 \
             --name todo-eks
+
+      - name: Test Kubernetes Authentication
+        run: |
+          echo "Checking Kubernetes connectivity..."
+          kubectl get nodes
+          kubectl auth can-i '*' '*' --all-namespaces
 
       - name: Install Helm
         uses: azure/setup-helm@v4
